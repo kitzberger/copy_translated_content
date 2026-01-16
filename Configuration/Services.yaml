@@ -1,0 +1,17 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  Kitzberger\CopyTranslatedContent\:
+    resource: '../Classes/*'
+
+  Kitzberger\CopyTranslatedContent\Controller\CopyContentController:
+    public: true
+
+  Kitzberger\CopyTranslatedContent\EventListener\ModifyPageLayoutContentEventListener:
+    tags:
+      - name: event.listener
+        identifier: 'copy-translated-content/modify-page-layout-content'
+        event: TYPO3\CMS\Backend\Controller\Event\ModifyPageLayoutContentEvent

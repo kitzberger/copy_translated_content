@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<xliff version="1.0">
+    <file source-language="en" datatype="plaintext" original="EXT:copy_translated_content/Resources/Private/Language/locallang.xlf" date="2026-01-16T10:00:00Z" product-name="copy_translated_content">
+        <header/>
+        <body>
+            <trans-unit id="button.copyTranslatedContent">
+                <source>Copy Translated Content</source>
+            </trans-unit>
+            <trans-unit id="modal.title">
+                <source>Copy Translated Content to Another Page</source>
+            </trans-unit>
+            <trans-unit id="modal.description">
+                <source>Copy all content elements from the current language to another page.</source>
+            </trans-unit>
+            <trans-unit id="modal.targetPid">
+                <source>Target Page ID</source>
+            </trans-unit>
+            <trans-unit id="modal.cancel">
+                <source>Cancel</source>
+            </trans-unit>
+            <trans-unit id="modal.copy">
+                <source>Copy</source>
+            </trans-unit>
+            <trans-unit id="notification.success">
+                <source>Successfully copied content elements</source>
+            </trans-unit>
+            <trans-unit id="notification.error">
+                <source>Error copying content elements</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>
