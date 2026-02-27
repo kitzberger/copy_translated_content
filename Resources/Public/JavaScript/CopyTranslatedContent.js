@@ -15,90 +15,59 @@ class CopyTranslatedContent {
     }
 
     initialize() {
-        console.log('CopyTranslatedContent: Initializing...');
-
-        // Try to add buttons to existing content
-        this.addCopyButtonsToContainer(document);
-
-        console.log('CopyTranslatedContent: Initialization complete');
+        this.addCopyButtons();
     }
 
     observePageChanges() {
-        // Watch for changes in the page module content area
-        const targetNode = document.body;
-        const config = { childList: true, subtree: true };
+        const observer = new MutationObserver(() => this.addCopyButtons());
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 
-        const callback = (mutationsList) => {
-            for (const mutation of mutationsList) {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    // Check if any translate buttons were added
-                    mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            this.addCopyButtonsToContainer(node);
-                        }
-                    });
-                }
+    addCopyButtons() {
+        const langLabelCells = document.querySelectorAll('td.t3-page-column.t3-page-lang-label.nowrap');
+
+        langLabelCells.forEach(cell => {
+            const btnGroup = cell.querySelector('.btn-group');
+            if (!btnGroup || btnGroup.querySelector('[data-copy-translated-content]')) {
+                return;
             }
-        };
 
-        const observer = new MutationObserver(callback);
-        observer.observe(targetNode, config);
-    }
-
-    addCopyButtonsToContainer(container) {
-        // Find translate buttons within the container
-        const selectors = [
-            '[data-action="localize"]',
-            'a[href*="localize"]',
-            'button[title*="ranslate"]',
-            '.t3js-localize',
-            '[data-localize]'
-        ];
-
-        for (const selector of selectors) {
-            const buttons = container.querySelectorAll ? container.querySelectorAll(selector) : [];
-            if (buttons.length > 0) {
-                console.log(`Found ${buttons.length} buttons with selector: ${selector}`);
-                buttons.forEach(button => this.addCopyButtonNext(button));
-                break;
+            const languageId = this.getLanguageIdFromCell(cell);
+            if (languageId === null) {
+                return;
             }
-        }
+
+            btnGroup.appendChild(this.createCopyButton(languageId));
+        });
     }
 
-    addCopyButtonNext(translateButton) {
-        // Check if button already has a copy button next to it
-        if (translateButton.nextElementSibling?.hasAttribute('data-copy-translated-content')) {
-            return;
+    getLanguageIdFromCell(cell) {
+        // The language UID is on the same column in the preceding row (td.t3-page-column-lang-name)
+        const cellIndex = Array.from(cell.parentNode.children).indexOf(cell);
+        const table = cell.closest('table');
+        if (!table) {
+            return null;
         }
 
-        const languageId = this.getLanguageIdFromButton(translateButton);
-        console.log('Adding copy button for language:', languageId, translateButton);
-
-        if (languageId > 0) {
-            const copyButton = this.createCopyButton(languageId);
-            translateButton.parentNode.insertBefore(copyButton, translateButton.nextSibling);
-        }
-    }
-
-    getLanguageIdFromButton(button) {
-        // Try to find language ID from data attributes or URL parameters
-        const pageId = parseInt(new URL(window.location.href).searchParams.get('id'));
-
-        // Look for language info in the button or its parent container
-        const languageColumn = button.closest('[data-language-id]');
-        if (languageColumn) {
-            return parseInt(languageColumn.dataset.languageId);
+        const langNameRow = table.querySelector('tr:first-child');
+        if (!langNameRow) {
+            return null;
         }
 
-        // Fallback: check the current URL for language parameter
-        return parseInt(new URL(window.location.href).searchParams.get('language')) || 0;
+        const langNameCell = langNameRow.children[cellIndex];
+        if (!langNameCell || !langNameCell.dataset.languageUid) {
+            return null;
+        }
+
+        return parseInt(langNameCell.dataset.languageUid);
     }
 
     createCopyButton(languageId) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'btn btn-default btn-sm';
-        button.title = 'Copy translated content to another page';
+        const title = languageId === 0 ? 'Copy content to another page' : 'Copy translated content to another page';
+        button.title = title;
         button.setAttribute('data-copy-translated-content', '');
         button.setAttribute('data-language-id', languageId);
 
@@ -124,8 +93,8 @@ class CopyTranslatedContent {
         const currentUrl = new URL(window.location.href);
         const pageId = parseInt(currentUrl.searchParams.get('id'));
 
-        if (!pageId || !languageId || languageId === 0) {
-            Notification.error('Cannot copy content', 'Please select a language other than default');
+        if (!pageId || languageId === undefined || languageId < 0) {
+            Notification.error('Cannot copy content', 'Invalid page or language');
             return;
         }
 
@@ -137,9 +106,10 @@ class CopyTranslatedContent {
 
         // Create content as DOM element
         const contentDiv = document.createElement('div');
+        const languageLabel = languageId === 0 ? 'default language' : `language ${languageId}`;
         contentDiv.innerHTML = `
             <div class="alert alert-info" role="alert">
-                <p>This will copy selected content elements from <strong>language ${languageId}</strong> of the current page (PID: ${pageId}) to another page.</p>
+                <p>This will copy selected content elements from <strong>${languageLabel}</strong> of the current page (PID: ${pageId}) to another page.</p>
                 <p class="mb-0">Please select the content elements to copy and provide the target page ID below.</p>
             </div>
             ${this.renderContentElementCheckboxes(elementsData)}
@@ -151,8 +121,12 @@ class CopyTranslatedContent {
             </div>
         `;
 
+        const modalTitle = languageId === 0
+            ? (TYPO3.lang['copy_translated_content.modal.title_default'] || 'Copy Content')
+            : (TYPO3.lang['copy_translated_content.modal.title'] || 'Copy Translated Content');
+
         const modal = Modal.advanced({
-            title: TYPO3.lang['copy_translated_content.modal.title'] || 'Copy Translated Content',
+            title: modalTitle,
             content: contentDiv,
             severity: Modal.types.default,
             buttons: [

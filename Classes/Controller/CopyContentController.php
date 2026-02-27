@@ -36,7 +36,7 @@ class CopyContentController
         $pageId = (int)($parsedBody['pageId'] ?? $queryParams['pageId'] ?? 0);
         $languageId = (int)($parsedBody['languageId'] ?? $queryParams['languageId'] ?? 0);
 
-        if ($pageId <= 0 || $languageId <= 0) {
+        if ($pageId <= 0 || $languageId < 0) {
             return new JsonResponse([
                 'success' => false,
                 'message' => 'Invalid parameters',
@@ -71,7 +71,7 @@ class CopyContentController
         $languageId = (int)($parsedBody['languageId'] ?? $queryParams['languageId'] ?? 0);
         $elementUids = $parsedBody['elementUids'] ?? $queryParams['elementUids'] ?? [];
 
-        if ($sourcePid <= 0 || $targetPid <= 0 || $languageId <= 0) {
+        if ($sourcePid <= 0 || $targetPid <= 0 || $languageId < 0) {
             return new JsonResponse([
                 'success' => false,
                 'message' => 'Invalid parameters',
