@@ -18,6 +18,9 @@
             <trans-unit id="modal.targetLanguageUid">
                 <source>Target Language UID</source>
             </trans-unit>
+            <trans-unit id="modal.neverHideAtCopy">
+                <source>Keep copied elements visible (do not hide on copy)</source>
+            </trans-unit>
             <trans-unit id="modal.cancel">
                 <source>Cancel</source>
             </trans-unit>

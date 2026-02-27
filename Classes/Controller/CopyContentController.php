@@ -6,6 +6,8 @@ namespace Kitzberger\CopyTranslatedContent\Controller;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Connection;
@@ -19,8 +21,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 /**
  * Controller for copying translated content elements
  */
-class CopyContentController
+class CopyContentController implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
     public function __construct(
         private readonly ConnectionPool $connectionPool
     ) {}
@@ -70,7 +73,17 @@ class CopyContentController
         $targetPid = (int)($parsedBody['targetPid'] ?? $queryParams['targetPid'] ?? 0);
         $languageId = (int)($parsedBody['languageId'] ?? $queryParams['languageId'] ?? 0);
         $targetLanguageUid = (int)($parsedBody['targetLanguageUid'] ?? $queryParams['targetLanguageUid'] ?? $languageId);
+        $neverHideAtCopy = (bool)($parsedBody['neverHideAtCopy'] ?? $queryParams['neverHideAtCopy'] ?? true);
         $elementUids = $parsedBody['elementUids'] ?? $queryParams['elementUids'] ?? [];
+
+        $this->logger->debug('copyAction called', [
+            'sourcePid' => $sourcePid,
+            'targetPid' => $targetPid,
+            'languageId' => $languageId,
+            'targetLanguageUid' => $targetLanguageUid,
+            'neverHideAtCopy' => $neverHideAtCopy,
+            'elementUids' => $elementUids,
+        ]);
 
         if ($sourcePid <= 0 || $targetPid <= 0 || $languageId < 0 || $targetLanguageUid < 0) {
             return new JsonResponse([
@@ -80,7 +93,7 @@ class CopyContentController
         }
 
         try {
-            $copiedCount = $this->copyTranslatedContent($sourcePid, $targetPid, $languageId, $targetLanguageUid, $elementUids);
+            $copiedCount = $this->copyTranslatedContent($sourcePid, $targetPid, $languageId, $targetLanguageUid, $neverHideAtCopy, $elementUids);
 
             return new JsonResponse([
                 'success' => true,
@@ -106,7 +119,7 @@ class CopyContentController
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
             ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $this->getBackendUser()->workspace));
 
-        $contentElements = $queryBuilder
+        $queryBuilder
             ->select('uid', 'header', 'CType', 'colPos')
             ->from('tt_content')
             ->where(
@@ -120,7 +133,19 @@ class CopyContentController
                 )
             )
             ->orderBy('colPos')
-            ->addOrderBy('sorting')
+            ->addOrderBy('sorting');
+
+        // Exclude container children if EXT:container is loaded
+        if (isset($GLOBALS['TCA']['tt_content']['columns']['tx_container_parent'])) {
+            $queryBuilder->andWhere(
+                $queryBuilder->expr()->eq(
+                    'tx_container_parent',
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
+                )
+            );
+        }
+
+        $contentElements = $queryBuilder
             ->executeQuery()
             ->fetchAllAssociative();
 
@@ -140,7 +165,7 @@ class CopyContentController
     /**
      * Copy translated content elements
      */
-    protected function copyTranslatedContent(int $sourcePid, int $targetPid, int $languageId, int $targetLanguageUid, array $elementUids = []): int
+    protected function copyTranslatedContent(int $sourcePid, int $targetPid, int $languageId, int $targetLanguageUid, bool $neverHideAtCopy, array $elementUids = []): int
     {
         $backendUser = $this->getBackendUser();
 
@@ -183,42 +208,72 @@ class CopyContentController
             );
         }
 
+        // Exclude container children if EXT:container is loaded
+        if (isset($GLOBALS['TCA']['tt_content']['columns']['tx_container_parent'])) {
+            $queryBuilder->andWhere(
+                $queryBuilder->expr()->eq(
+                    'tx_container_parent',
+                    $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
+                )
+            );
+        }
+
         $contentElements = $queryBuilder
-            ->orderBy('sorting')
+            ->orderBy('sorting', 'DESC')
             ->executeQuery()
             ->fetchAllAssociative();
+
+        $this->logger->debug('Query returned content elements', [
+            'count' => count($contentElements),
+            'uids' => array_column($contentElements, 'uid'),
+        ]);
 
         if (empty($contentElements)) {
             return 0;
         }
 
-        // Prepare DataHandler
-        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-        $dataHandler->start([], [], $backendUser);
-
         $copiedCount = 0;
         foreach ($contentElements as $element) {
-            // Copy the record using DataHandler
-            $newUid = $dataHandler->copyRecord(
-                'tt_content',
-                $element['uid'],
-                $targetPid,
-                true,
-                [],
-                '',
-                $languageId,
-                true // ignoreLocalization = true, don't copy child localizations
-            );
+            $updateFields = [
+            ];
+            if ($targetLanguageUid !== $languageId) {
+                $updateFields['sys_language_uid'] = $targetLanguageUid;
+            }
+
+            $cmd = [
+                'tt_content' => [
+                    $element['uid'] => [
+                        'copy' => [
+                            'action' => 'paste',
+                            'target' => $targetPid,
+                            'update' => $updateFields,
+                        ],
+                    ],
+                ],
+            ];
+            $this->logger->debug('Copy command', $cmd);
+
+            // Fresh DataHandler per copy to avoid internal state issues
+            $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+            $dataHandler->neverHideAtCopy = $neverHideAtCopy;
+            $dataHandler->start([], $cmd, $backendUser);
+            $dataHandler->process_cmdmap();
+
+            if ($dataHandler->errorLog !== []) {
+                $this->logger->error('DataHandler errors during copy', [
+                    'sourceUid' => $element['uid'],
+                    'errors' => $dataHandler->errorLog,
+                ]);
+            }
+
+            $newUid = $dataHandler->copyMappingArray['tt_content'][$element['uid']] ?? null;
+
+            $this->logger->debug('Copy result', [
+                'sourceUid' => $element['uid'],
+                'newUid' => $newUid,
+            ]);
 
             if ($newUid) {
-                // Update sys_language_uid if target language differs from source
-                if ($targetLanguageUid !== $languageId) {
-                    $this->connectionPool->getConnectionForTable('tt_content')->update(
-                        'tt_content',
-                        ['sys_language_uid' => $targetLanguageUid],
-                        ['uid' => $newUid]
-                    );
-                }
                 $copiedCount++;
             }
         }

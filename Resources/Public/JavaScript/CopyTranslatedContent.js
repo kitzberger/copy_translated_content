@@ -125,6 +125,12 @@ class CopyTranslatedContent {
                 </label>
                 <input type="number" class="form-control" id="targetLanguageUid" min="0" value="${languageId}" placeholder="Enter target language UID">
             </div>
+            <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" id="neverHideAtCopy" checked>
+                <label class="form-check-label" for="neverHideAtCopy">
+                    ${TYPO3.lang['copy_translated_content.modal.neverHideAtCopy'] || 'Keep copied elements visible (do not hide on copy)'}
+                </label>
+            </div>
         `;
 
         const modalTitle = languageId === 0
@@ -153,8 +159,9 @@ class CopyTranslatedContent {
                         const targetPid = targetInput ? parseInt(targetInput.value) : 0;
                         const targetLangInput = modalElement.querySelector('#targetLanguageUid');
                         const targetLanguageUid = targetLangInput ? parseInt(targetLangInput.value) : languageId;
+                        const neverHideAtCopy = modalElement.querySelector('#neverHideAtCopy')?.checked ? 1 : 0;
                         if (targetPid > 0) {
-                            this.copyContent(pageId, targetPid, languageId, targetLanguageUid, modal, modalElement);
+                            this.copyContent(pageId, targetPid, languageId, targetLanguageUid, neverHideAtCopy, modal, modalElement);
                         }
                     }
                 }
@@ -210,7 +217,7 @@ class CopyTranslatedContent {
         return div.innerHTML;
     }
 
-    async copyContent(sourcePid, targetPid, languageId, targetLanguageUid, modal, modalElement) {
+    async copyContent(sourcePid, targetPid, languageId, targetLanguageUid, neverHideAtCopy, modal, modalElement) {
         // Disable buttons and show loading state
         const copyButton = modalElement.querySelector('.modal-footer .btn-primary');
         const cancelButton = modalElement.querySelector('.modal-footer .btn-default');
@@ -243,6 +250,7 @@ class CopyTranslatedContent {
                 targetPid: targetPid,
                 languageId: languageId,
                 targetLanguageUid: targetLanguageUid,
+                neverHideAtCopy: neverHideAtCopy,
                 elementUids: elementUids
             });
 
