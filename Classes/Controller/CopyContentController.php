@@ -69,9 +69,10 @@ class CopyContentController
         $sourcePid = (int)($parsedBody['sourcePid'] ?? $queryParams['sourcePid'] ?? 0);
         $targetPid = (int)($parsedBody['targetPid'] ?? $queryParams['targetPid'] ?? 0);
         $languageId = (int)($parsedBody['languageId'] ?? $queryParams['languageId'] ?? 0);
+        $targetLanguageUid = (int)($parsedBody['targetLanguageUid'] ?? $queryParams['targetLanguageUid'] ?? $languageId);
         $elementUids = $parsedBody['elementUids'] ?? $queryParams['elementUids'] ?? [];
 
-        if ($sourcePid <= 0 || $targetPid <= 0 || $languageId < 0) {
+        if ($sourcePid <= 0 || $targetPid <= 0 || $languageId < 0 || $targetLanguageUid < 0) {
             return new JsonResponse([
                 'success' => false,
                 'message' => 'Invalid parameters',
@@ -79,7 +80,7 @@ class CopyContentController
         }
 
         try {
-            $copiedCount = $this->copyTranslatedContent($sourcePid, $targetPid, $languageId, $elementUids);
+            $copiedCount = $this->copyTranslatedContent($sourcePid, $targetPid, $languageId, $targetLanguageUid, $elementUids);
 
             return new JsonResponse([
                 'success' => true,
@@ -139,7 +140,7 @@ class CopyContentController
     /**
      * Copy translated content elements
      */
-    protected function copyTranslatedContent(int $sourcePid, int $targetPid, int $languageId, array $elementUids = []): int
+    protected function copyTranslatedContent(int $sourcePid, int $targetPid, int $languageId, int $targetLanguageUid, array $elementUids = []): int
     {
         $backendUser = $this->getBackendUser();
 
@@ -210,6 +211,14 @@ class CopyContentController
             );
 
             if ($newUid) {
+                // Update sys_language_uid if target language differs from source
+                if ($targetLanguageUid !== $languageId) {
+                    $this->connectionPool->getConnectionForTable('tt_content')->update(
+                        'tt_content',
+                        ['sys_language_uid' => $targetLanguageUid],
+                        ['uid' => $newUid]
+                    );
+                }
                 $copiedCount++;
             }
         }

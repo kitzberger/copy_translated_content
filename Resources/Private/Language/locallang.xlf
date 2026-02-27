@@ -15,6 +15,9 @@
             <trans-unit id="modal.targetPid">
                 <source>Target Page ID</source>
             </trans-unit>
+            <trans-unit id="modal.targetLanguageUid">
+                <source>Target Language UID</source>
+            </trans-unit>
             <trans-unit id="modal.cancel">
                 <source>Cancel</source>
             </trans-unit>

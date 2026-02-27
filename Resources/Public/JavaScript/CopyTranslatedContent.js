@@ -119,6 +119,12 @@ class CopyTranslatedContent {
                 </label>
                 <input type="number" class="form-control" id="targetPid" min="1" required placeholder="Enter target page ID">
             </div>
+            <div class="form-group mt-3">
+                <label for="targetLanguageUid" class="form-label">
+                    ${TYPO3.lang['copy_translated_content.modal.targetLanguageUid'] || 'Target Language UID'}
+                </label>
+                <input type="number" class="form-control" id="targetLanguageUid" min="0" value="${languageId}" placeholder="Enter target language UID">
+            </div>
         `;
 
         const modalTitle = languageId === 0
@@ -145,8 +151,10 @@ class CopyTranslatedContent {
                         const modalElement = e.target.closest('typo3-backend-modal');
                         const targetInput = modalElement.querySelector('#targetPid');
                         const targetPid = targetInput ? parseInt(targetInput.value) : 0;
+                        const targetLangInput = modalElement.querySelector('#targetLanguageUid');
+                        const targetLanguageUid = targetLangInput ? parseInt(targetLangInput.value) : languageId;
                         if (targetPid > 0) {
-                            this.copyContent(pageId, targetPid, languageId, modal, modalElement);
+                            this.copyContent(pageId, targetPid, languageId, targetLanguageUid, modal, modalElement);
                         }
                     }
                 }
@@ -202,7 +210,7 @@ class CopyTranslatedContent {
         return div.innerHTML;
     }
 
-    async copyContent(sourcePid, targetPid, languageId, modal, modalElement) {
+    async copyContent(sourcePid, targetPid, languageId, targetLanguageUid, modal, modalElement) {
         // Disable buttons and show loading state
         const copyButton = modalElement.querySelector('.modal-footer .btn-primary');
         const cancelButton = modalElement.querySelector('.modal-footer .btn-default');
@@ -234,6 +242,7 @@ class CopyTranslatedContent {
                 sourcePid: sourcePid,
                 targetPid: targetPid,
                 languageId: languageId,
+                targetLanguageUid: targetLanguageUid,
                 elementUids: elementUids
             });
 
