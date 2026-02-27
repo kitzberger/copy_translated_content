@@ -1,19 +1,25 @@
 # TYPO3 Extension `copy_translated_content`
 
-TYPO3 extension that allows copying translated content elements from one page to another without copying the default language.
+TYPO3 extension that allows copying content elements of ONE language from one page to another — without copying the translations!
 
 ## Features
 
-- Adds a "Copy Translated Content" button in the page module when viewing a language other than default
-- Opens a modal dialog to specify the target page ID
-- Copies only content elements from the selected language
-- Does not copy default language content or trigger automatic translation of copied elements
-- Respects workspace and permissions
+- Adds a copy button to each language column header in the page module's "Languages" view
+- Modal dialog lets you configure:
+	- Which content elements to copy (checkbox per element)
+	- Target page ID
+	- Target language UID (allows copying content into a different language)
+	- "Keep visible" option to prevent hiding elements on copy
+- Preserves `colPos` and `sorting` of the original elements
+- Respects permissions
+
+## EXT:container support
+
+When [`EXT:container`](https://github.com/b13/container) is installed, only top-level content elements (`tx_container_parent = 0`) are listed in the dialog. Container children are copied automatically as part of their parent container element by the DataHandler.
 
 ## Technical Details
 
-- Uses DataHandler::copyRecord() with `ignoreLocalization = true` to prevent copying child localizations
-- Only copies content elements with `sys_language_uid > 0`
+- Uses the DataHandler command map (`process_cmdmap`) with the paste mechanism to copy records and apply field overrides in a single operation
 - Checks read permissions on source page and edit permissions on target page
 
 ## Requirements
