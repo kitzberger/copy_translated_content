@@ -15,7 +15,9 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -175,6 +177,11 @@ class CopyContentController implements LoggerAwareInterface
         }
         if (!$backendUser->doesUserHaveAccess(BackendUtility::getRecord('pages', $targetPid), 16)) {
             throw new \RuntimeException('No edit access to target page');
+        }
+
+        // Check if the target language is allowed on the target site
+        if ($targetLanguageUid > 0) {
+            $this->assertLanguageAvailableOnSite($targetPid, $targetLanguageUid);
         }
 
         // Get all content elements from source page in the specified language
@@ -343,6 +350,28 @@ class CopyContentController implements LoggerAwareInterface
             ]);
             throw new \RuntimeException(
                 sprintf('Could not create page translation for page %d in language %d', $pageUid, $languageUid)
+            );
+        }
+    }
+
+    /**
+     * Assert that the given language is configured on the site that owns the page.
+     */
+    protected function assertLanguageAvailableOnSite(int $pageUid, int $languageUid): void
+    {
+        try {
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageUid);
+        } catch (SiteNotFoundException $e) {
+            throw new \RuntimeException(
+                sprintf('No site configuration found for page %d', $pageUid)
+            );
+        }
+
+        try {
+            $site->getLanguageById($languageUid);
+        } catch (\InvalidArgumentException $e) {
+            throw new \RuntimeException(
+                sprintf('Language %d is not available on the site for page %d', $languageUid, $pageUid)
             );
         }
     }

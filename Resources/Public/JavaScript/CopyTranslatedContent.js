@@ -283,9 +283,21 @@ class CopyTranslatedContent {
 			cancelButton.disabled = false;
 			copyButton.textContent = originalCopyText;
 
+			let errorMessage = 'An error occurred while copying content';
+			if (error.response) {
+				try {
+					const data = await error.resolve();
+					errorMessage = data.message || errorMessage;
+				} catch (e) {
+					// Could not parse response body
+				}
+			} else if (error.message) {
+				errorMessage = error.message;
+			}
+
 			Notification.error(
 				TYPO3.lang['copy_translated_content.notification.error'] || 'Error',
-				error.message || 'An error occurred while copying content'
+				errorMessage
 			);
 		}
 	}
