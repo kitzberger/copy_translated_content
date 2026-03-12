@@ -232,6 +232,11 @@ class CopyContentController implements LoggerAwareInterface
             return 0;
         }
 
+        // Ensure a page translation exists for the target language
+        if ($targetLanguageUid > 0) {
+            $this->ensurePageTranslationExists($targetPid, $targetLanguageUid, $backendUser);
+        }
+
         $copiedCount = 0;
         foreach ($contentElements as $element) {
             $updateFields = [
@@ -279,6 +284,67 @@ class CopyContentController implements LoggerAwareInterface
         }
 
         return $copiedCount;
+    }
+
+    /**
+     * Ensure a page translation record exists for the given page and language.
+     * If none exists, create one via DataHandler's localize command.
+     */
+    protected function ensurePageTranslationExists(int $pageUid, int $languageUid, BackendUserAuthentication $backendUser): void
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('pages');
+        $queryBuilder->getRestrictions()
+            ->removeAll()
+            ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, $backendUser->workspace));
+
+        $count = $queryBuilder
+            ->count('uid')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'l10n_parent',
+                    $queryBuilder->createNamedParameter($pageUid, Connection::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    'sys_language_uid',
+                    $queryBuilder->createNamedParameter($languageUid, Connection::PARAM_INT)
+                )
+            )
+            ->executeQuery()
+            ->fetchOne();
+
+        if ($count > 0) {
+            return;
+        }
+
+        $this->logger->info('Creating missing page translation', [
+            'pageUid' => $pageUid,
+            'languageUid' => $languageUid,
+        ]);
+
+        $cmd = [
+            'pages' => [
+                $pageUid => [
+                    'localize' => $languageUid,
+                ],
+            ],
+        ];
+
+        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+        $dataHandler->start([], $cmd, $backendUser);
+        $dataHandler->process_cmdmap();
+
+        if ($dataHandler->errorLog !== []) {
+            $this->logger->error('DataHandler errors during page translation creation', [
+                'pageUid' => $pageUid,
+                'languageUid' => $languageUid,
+                'errors' => $dataHandler->errorLog,
+            ]);
+            throw new \RuntimeException(
+                sprintf('Could not create page translation for page %d in language %d', $pageUid, $languageUid)
+            );
+        }
     }
 
     protected function getBackendUser(): BackendUserAuthentication
