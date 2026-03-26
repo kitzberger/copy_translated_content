@@ -24,6 +24,7 @@ class CopyTranslatedContent {
 	}
 
 	addCopyButtons() {
+		// Language comparison mode: attach to each language column's btn-group
 		const langLabelCells = document.querySelectorAll('td.t3-page-column.t3-page-lang-label.nowrap');
 
 		langLabelCells.forEach(cell => {
@@ -39,6 +40,29 @@ class CopyTranslatedContent {
 
 			btnGroup.appendChild(this.createCopyButton(languageId));
 		});
+
+		// Layout mode: attach to docheader toolbar when no language columns exist
+		if (langLabelCells.length === 0) {
+			this.addCopyButtonToLayoutMode();
+		}
+	}
+
+	addCopyButtonToLayoutMode() {
+		const toolbar = document.querySelector('.module-docheader-bar-buttons .module-docheader-bar-column-right .btn-toolbar');
+		if (!toolbar || toolbar.querySelector('[data-copy-translated-content-layout]')) {
+			return;
+		}
+
+		const currentUrl = new URL(window.location.href);
+		const languageId = parseInt(currentUrl.searchParams.get('language')) || 0;
+
+		const wrapper = document.createElement('div');
+		wrapper.setAttribute('data-copy-translated-content-layout', '');
+		wrapper.className = 'btn-group';
+		wrapper.setAttribute('role', 'group');
+		wrapper.appendChild(this.createCopyButton(languageId));
+
+		toolbar.prepend(wrapper);
 	}
 
 	getLanguageIdFromCell(cell) {
