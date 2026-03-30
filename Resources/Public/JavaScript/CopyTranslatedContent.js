@@ -122,11 +122,13 @@ class CopyTranslatedContent {
 			return;
 		}
 
-		// Fetch content elements
-		const elementsData = await this.fetchContentElements(pageId, languageId);
-		if (!elementsData) {
+		// Fetch content elements and available languages
+		const data = await this.fetchContentElements(pageId, languageId);
+		if (!data) {
 			return;
 		}
+
+		const { contentElements: elementsData, languages } = data;
 
 		// Create content as DOM element
 		const contentDiv = document.createElement('div');
@@ -145,9 +147,9 @@ class CopyTranslatedContent {
 			</div>
 			<div class="form-group mt-3">
 				<label for="targetLanguageUid" class="form-label">
-					${TYPO3.lang['copy_translated_content.modal.targetLanguageUid'] || 'Target Language UID'}
+					${TYPO3.lang['copy_translated_content.modal.targetLanguageUid'] || 'Target Language'}
 				</label>
-				<input type="number" class="form-control" id="targetLanguageUid" min="0" value="${languageId}" placeholder="Enter target language UID">
+				${this.renderLanguageSelect(languages, languageId)}
 			</div>
 			<div class="form-check mt-3">
 				<input class="form-check-input" type="checkbox" id="neverHideAtCopy" checked>
@@ -200,11 +202,19 @@ class CopyTranslatedContent {
 				languageId: languageId
 			});
 			const data = await response.resolve();
-			return data.success ? data.contentElements : null;
+			return data.success ? { contentElements: data.contentElements, languages: data.languages || [] } : null;
 		} catch (error) {
 			Notification.error('Error', 'Failed to fetch content elements');
 			return null;
 		}
+	}
+
+	renderLanguageSelect(languages, selectedLanguageId) {
+		const options = languages.map(lang => {
+			const selected = lang.uid === selectedLanguageId ? ' selected' : '';
+			return `<option value="${lang.uid}"${selected}>${this.escapeHtml(lang.title)}</option>`;
+		}).join('');
+		return `<select class="form-select" id="targetLanguageUid">${options}</select>`;
 	}
 
 	renderContentElementCheckboxes(elementsData) {

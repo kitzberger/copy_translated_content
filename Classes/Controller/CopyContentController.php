@@ -17,6 +17,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -27,7 +28,8 @@ class CopyContentController implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
     public function __construct(
-        private readonly ConnectionPool $connectionPool
+        private readonly ConnectionPool $connectionPool,
+        private readonly SiteFinder $siteFinder,
     ) {}
 
     /**
@@ -50,10 +52,12 @@ class CopyContentController implements LoggerAwareInterface
 
         try {
             $contentElements = $this->getContentElements($pageId, $languageId);
+            $languages = $this->getAvailableLanguages();
 
             return new JsonResponse([
                 'success' => true,
                 'contentElements' => $contentElements,
+                'languages' => $languages,
             ]);
         } catch (\Exception $e) {
             return new JsonResponse([
@@ -374,6 +378,27 @@ class CopyContentController implements LoggerAwareInterface
                 sprintf('Language %d is not available on the site for page %d', $languageUid, $pageUid)
             );
         }
+    }
+
+    /**
+     * Get all available languages across all sites, deduplicated by language ID.
+     */
+    protected function getAvailableLanguages(): array
+    {
+        $languages = [];
+        foreach ($this->siteFinder->getAllSites() as $site) {
+            foreach ($site->getLanguages() as $language) {
+                $uid = $language->getLanguageId();
+                if (!isset($languages[$uid])) {
+                    $languages[$uid] = [
+                        'uid' => $uid,
+                        'title' => $uid === 0 ? 'Default language' : $language->getTitle(),
+                    ];
+                }
+            }
+        }
+        ksort($languages);
+        return array_values($languages);
     }
 
     protected function getBackendUser(): BackendUserAuthentication
